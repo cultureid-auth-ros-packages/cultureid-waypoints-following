@@ -1,0 +1,5 @@
+goal_frame_id: 'map'
+odom_frame_id: 'odom'
+base_frame_id: 'base_footprint'
+wait_duration: 0.0
+waypoint_distance_tolerance: 0.0
