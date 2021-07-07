@@ -32,6 +32,7 @@ class FollowPath(State):
         self.odom_frame_id = rospy.get_param('~odom_frame_id','odom')
         self.base_frame_id = rospy.get_param('~base_frame_id','base_footprint')
         self.duration = rospy.get_param('~wait_duration', 0.0)
+        self.go_to_next_waypoint_trigger_topic = rospy.get_param('~go_to_next_waypoint_trigger_topic', 'go_to_next_waypoint_trigger')
 
 
         # Get a move_base action client
@@ -92,17 +93,18 @@ class FollowPath(State):
             # Wait for the robot to navigate to the waypoint
             self.client.wait_for_result()
 
-            # Wait for a message publication in 'go_to_next_waypoint' before
-            # moving on to the next waypoint.
+            # Wait for a message publication in
+            # 'go_to_next_waypoint_trigger_topic'
+            # before moving on to the next waypoint.
             # The last waypoint signifies a de facto path_complete state on its own
             if waypoint_counter < len(waypoints.poses):
-                rospy.loginfo("Waiting for msg in 'go_to_next_waypoint' to go to next waypoint")
-                rospy.wait_for_message('go_to_next_waypoint', Empty)
-                rospy.loginfo("msg received in 'go_to_next_waypoint'; next waypoint underway")
-
+                rospy.loginfo("Reached target waypoint")
+                rospy.loginfo("Currently waiting for msg in '%s' to go to next waypoint" % self.go_to_next_waypoint_trigger_topic)
+                rospy.loginfo("To do so issue 'rostopic pub %s std_msgs/Empty -1'" % self.go_to_next_waypoint_trigger_topic)
+                rospy.wait_for_message(self.go_to_next_waypoint_trigger_topic, Empty)
+                rospy.loginfo("msg received in '%s'; next waypoint underway" % self.go_to_next_waypoint_trigger_topic)
 
         return 'success'
-
 
 
 
@@ -114,18 +116,24 @@ class GetPath(State):
     def __init__(self):
         State.__init__(self, outcomes=['success'], input_keys=['waypoints'], output_keys=['waypoints'])
 
+        # Topics
+        self.rviz_waypoints_ready_topic = rospy.get_param('~rviz_waypoints_ready_topic', 'rviz_waypoints_ready');
+        self.file_waypoints_ready_topic = rospy.get_param('~file_waypoints_ready_topic', 'file_waypoints_ready');
+        self.waypoints_reset_topic = rospy.get_param('~waypoints_reset_topic', 'waypoints_reset');
+        self.waypoints_vis_topic = rospy.get_param('~waypoints_visualisation_topic', 'waypoints_viz');
+
         # Create publisher to publish waypoints as pose array so that you can see them in rviz, etc.
-        self.poseArray_publisher = rospy.Publisher('/waypoints_2', PoseArray, queue_size=1)
+        self.poseArray_publisher = rospy.Publisher(self.waypoints_vis_topic, PoseArray, queue_size=1)
 
         # For self-publishing the required message; added 01/10/2020
-        self.empty_msg_pub = rospy.Publisher('/path_ready', Empty, queue_size=1)
+        #self.empty_msg_pub = rospy.Publisher(self.rviz_waypoints_ready_topic, Empty, queue_size=1)
 
         # Start thread to listen for reset messages to clear the waypoint queue
         def wait_for_path_reset():
             """thread worker function"""
             global waypoints
             while not rospy.is_shutdown():
-                data = rospy.wait_for_message('/path_reset', Empty)
+                data = rospy.wait_for_message(self.waypoints_reset_topic, Empty)
                 rospy.loginfo('Received path RESET message')
                 self.initialize_path_queue()
                 rospy.sleep(3) # Wait 3 seconds because `rostopic echo` latches
@@ -160,8 +168,8 @@ class GetPath(State):
         # Also will save the clicked path to pose.csv file
         def wait_for_path_ready():
             """thread worker function"""
-            data = rospy.wait_for_message('/path_ready', Empty)
-            rospy.loginfo('Received path READY message')
+            data = rospy.wait_for_message(self.rviz_waypoints_ready_topic, Empty)
+            rospy.loginfo('Received path READY from rviz waypoints')
             self.path_ready = True
             with open(output_file_path, 'w') as file:
                 for current_pose in waypoints.poses:
@@ -173,15 +181,15 @@ class GetPath(State):
         self.start_journey_bool = False
 
         ########################################################################
-        # Start thread to listen start_journey
+        # Start thread to listen self.file_waypoints_ready_topic
         # for loading the saved poses from saved_path/poses.csv
         def wait_for_start_journey():
             global waypoints
             global input_file_path
 
             """thread worker function"""
-            data_from_start_journey = rospy.wait_for_message('start_journey', Empty)
-            rospy.loginfo('Received path READY start_journey')
+            data_from_start_journey = rospy.wait_for_message(self.file_waypoints_ready_topic, Empty)
+            rospy.loginfo('Received path READY from file waypoints')
             rospy.loginfo('Reading poses from %s' % input_file_path)
             waypoints = Path()
             with open(input_file_path, 'r') as file:
@@ -204,11 +212,12 @@ class GetPath(State):
         start_journey_thread = threading.Thread(target=wait_for_start_journey)
         start_journey_thread.start()
 
-        topic = "/waypoints"
-        rospy.loginfo("Waiting to receive waypoints via Pose msg on topic %s" % topic)
-        rospy.loginfo("To start following waypoints: 'rostopic pub /path_ready std_msgs/Empty -1'")
+        # The topic where the waypoints provided via rviz are handed to this node for following
+        topic = rospy.get_param('~rviz_waypoints_topic', 'rviz_waypoints')
+        rospy.loginfo("Waiting to receive waypoints via rviz on topic '%s'" % topic)
+        rospy.loginfo("To start following rviz waypoints: 'rostopic pub %s std_msgs/Empty -1'" % self.rviz_waypoints_ready_topic)
         rospy.loginfo("OR")
-        rospy.loginfo("To start following saved waypoints: 'rostopic pub /start_journey std_msgs/Empty -1'")
+        rospy.loginfo("To start following saved waypoints: 'rostopic pub %s std_msgs/Empty -1'" % self.file_waypoints_ready_topic)
 
 
         # Wait for published waypoints or saved path loaded

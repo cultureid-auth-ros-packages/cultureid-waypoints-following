@@ -9,8 +9,8 @@ waypoint_distance_tolerance:  0.0
 
 # Topics subscribed/publishing to
 go_to_next_waypoint_trigger_topic:  'go_to_next_waypoint_trigger'
-rviz_waypoints_topic:               'rviz_waypoints'             # waypoints
+rviz_waypoints_topic:               'rviz_waypoints'       # waypoints
 rviz_waypoints_ready_topic:         'rviz_waypoints_ready' # path_ready
 file_waypoints_ready_topic:         'file_waypoints_ready' # start_journey
-waypoints_reset_topic:              'waypoints_reset'
-waypoints_visualisation_topic:      'waypoints_2'  # waypoints_2
+waypoints_reset_topic:              'waypoints_reset'      # path_reset
+waypoints_visualisation_topic:      'waypoints_viz'        # waypoints_2
