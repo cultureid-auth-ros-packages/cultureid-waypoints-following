@@ -92,6 +92,9 @@ class FollowPath(State):
             # Wait for the robot to navigate to the waypoint
             self.client.wait_for_result()
 
+            # Wait for a message publication in 'go_to_next_waypoint' before
+            # moving on to the next waypoint.
+            # The last waypoint signifies a de facto path_complete state on its own
             if waypoint_counter < len(waypoints.poses):
                 rospy.loginfo("Waiting for msg in 'go_to_next_waypoint' to go to next waypoint")
                 rospy.wait_for_message('go_to_next_waypoint', Empty)
@@ -208,7 +211,7 @@ class GetPath(State):
         rospy.loginfo("To start following saved waypoints: 'rostopic pub /start_journey std_msgs/Empty -1'")
 
 
-        # Wait for published waypoints or saved path  loaded
+        # Wait for published waypoints or saved path loaded
         while (not self.path_ready and not self.start_journey_bool):
             try:
                 waypoints = rospy.wait_for_message(topic, Path, timeout=1)
