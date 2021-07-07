@@ -23,6 +23,8 @@ output_file_path = ""
 ################################################################################
 ################################################################################
 class FollowPath(State):
+
+    ############################################################################
     def __init__(self):
         State.__init__(self, outcomes=['success'], input_keys=['waypoints'])
 
@@ -42,8 +44,11 @@ class FollowPath(State):
         self.listener = tf.TransformListener()
         self.distance_tolerance = rospy.get_param('waypoint_distance_tolerance', 0.0)
 
+    ############################################################################
     def execute(self, userdata):
         global waypoints
+
+        waypoint_counter = 0
 
         # Execute waypoints each in sequence
         for waypoint in waypoints.poses:
@@ -52,6 +57,8 @@ class FollowPath(State):
             if waypoints == []:
                 rospy.loginfo('The waypoint queue has been reset.')
                 break
+
+            waypoint_counter = waypoint_counter + 1
 
             # Otherwise publish next waypoint as goal
             goal = MoveBaseGoal()
@@ -62,38 +69,45 @@ class FollowPath(State):
                     (waypoint.pose.position.x, waypoint.pose.position.y))
             rospy.loginfo("To cancel the goal: 'rostopic pub -1 /move_base/cancel actionlib_msgs/GoalID -- {}'")
             self.client.send_goal(goal)
+
+            """ Original lines follow: (modified 7/7/21)
             if not self.distance_tolerance > 0.0:
+                rospy.loginfo('1')
                 self.client.wait_for_result()
                 rospy.loginfo("Waiting for %f sec..." % self.duration)
                 time.sleep(self.duration)
             else:
                 #This is the loop which exist when the robot is near a certain GOAL point.
                 distance = 10
+                rospy.loginfo('2')
                 while(distance > self.distance_tolerance):
+                    rospy.loginfo('distance = %d' %distance)
+                    rospy.loginfo('3')
                     now = rospy.Time.now()
                     self.listener.waitForTransform(self.odom_frame_id, self.base_frame_id, now, rospy.Duration(4.0))
                     trans,rot = self.listener.lookupTransform(self.odom_frame_id,self.base_frame_id, now)
                     distance = math.sqrt(pow(waypoint.pose.position.x-trans[0],2)+pow(waypoint.pose.position.y-trans[1],2))
+            """
+
+            # Wait for the robot to navigate to the waypoint
+            self.client.wait_for_result()
+
+            if waypoint_counter < len(waypoints.poses):
+                rospy.loginfo("Waiting for msg in 'go_to_next_waypoint' to go to next waypoint")
+                rospy.wait_for_message('go_to_next_waypoint', Empty)
+                rospy.loginfo("msg received in 'go_to_next_waypoint'; next waypoint underway")
+
+
         return 'success'
 
-def convert_PoseWithCovArray_to_PoseArray(waypoints):
-    """Used to publish waypoints as pose array so that you can see them in rviz, etc."""
-    poses = PoseArray()
-    poses.header.frame_id = rospy.get_param('~goal_frame_id','map')
-    poses.poses = [pose.pose.pose for pose in waypoints]
-    return poses
 
-def convert_Path_to_PoseArray(waypoints):
-    """Used to publish waypoints as pose array so that you can see them in rviz, etc."""
-    poses = PoseArray()
-    poses.header.frame_id = rospy.get_param('~goal_frame_id','map')
-    poses.poses = [pose.pose for pose in waypoints.poses]
-    return poses
 
 
 ################################################################################
 ################################################################################
 class GetPath(State):
+
+    ############################################################################
     def __init__(self):
         State.__init__(self, outcomes=['success'], input_keys=['waypoints'], output_keys=['waypoints'])
 
@@ -117,12 +131,22 @@ class GetPath(State):
         reset_thread = threading.Thread(target=wait_for_path_reset)
         reset_thread.start()
 
+    ############################################################################
+    def convert_Path_to_PoseArray(self, waypoints):
+        """Used to publish waypoints as pose array so that you can see them in rviz, etc."""
+        poses = PoseArray()
+        poses.header.frame_id = rospy.get_param('~goal_frame_id','map')
+        poses.poses = [pose.pose for pose in waypoints.poses]
+        return poses
+
+    ############################################################################
     def initialize_path_queue(self):
         global waypoints
         waypoints = [] # the waypoint queue
         # publish empty waypoint queue as pose array so that you can see them the change in rviz, etc.
-        #self.poseArray_publisher.publish(convert_Path_to_PoseArray(waypoints))
+        #self.poseArray_publisher.publish(self.convert_Path_to_PoseArray(waypoints))
 
+    ############################################################################
     def execute(self, userdata):
         global waypoints
         global output_file_path
@@ -145,6 +169,7 @@ class GetPath(State):
 
         self.start_journey_bool = False
 
+        ########################################################################
         # Start thread to listen start_journey
         # for loading the saved poses from saved_path/poses.csv
         def wait_for_start_journey():
@@ -159,7 +184,7 @@ class GetPath(State):
             with open(input_file_path, 'r') as file:
                 reader = csv.reader(file, delimiter = ',')
                 for row in reader:
-                    print row
+                    #print row
                     current_pose = PoseStamped()
                     current_pose.pose.position.x    = float(row[0])
                     current_pose.pose.position.y    = float(row[1])
@@ -169,7 +194,7 @@ class GetPath(State):
                     current_pose.pose.orientation.z = float(row[5])
                     current_pose.pose.orientation.w = float(row[6])
                     waypoints.poses.append(current_pose)
-            self.poseArray_publisher.publish(convert_Path_to_PoseArray(waypoints))
+            self.poseArray_publisher.publish(self.convert_Path_to_PoseArray(waypoints))
             self.start_journey_bool = True
 
 
@@ -195,8 +220,7 @@ class GetPath(State):
             rospy.loginfo("Received waypoints")
 
             # publish waypoint queue as pose array so that you can see them in rviz, etc.
-            #self.poseArray_publisher.publish(convert_PoseWithCovArray_to_PoseArray(waypoints))
-            self.poseArray_publisher.publish(convert_Path_to_PoseArray(waypoints))
+            self.poseArray_publisher.publish(self.convert_Path_to_PoseArray(waypoints))
 
             # Message by li9i, 1/10/2020:
             # Once the waypoints message is received, this package by default
@@ -209,8 +233,6 @@ class GetPath(State):
             #empty_msg = Empty()
             #self.empty_msg_pub.publish(empty_msg)
 
-
-
         # Path is ready! return success and move on to the next state (FOLLOW_PATH)
         return 'success'
 
@@ -218,9 +240,12 @@ class GetPath(State):
 ################################################################################
 ################################################################################
 class PathComplete(State):
+
+    ############################################################################
     def __init__(self):
         State.__init__(self, outcomes=['success'])
 
+    ############################################################################
     def execute(self, userdata):
         rospy.loginfo('###############################')
         rospy.loginfo('##### REACHED FINISH GATE #####')
@@ -232,14 +257,15 @@ class PathComplete(State):
 def main():
     rospy.init_node('cultureid_waypoints_following')
 
-    global input_file_path
-    global output_file_path
 
     # Essentially which waypoints to follow
     game_id = rospy.get_param('~game_id', 0)
 
-    #Path for saving and retreiving the pose.csv file
+    # Paths for saving and retrieving the poses to be followed
+    global input_file_path
     input_file_path = rospkg.RosPack().get_path('cultureid_waypoints_following')+"/saved_path/pose_" + str(game_id) + ".csv"
+
+    global output_file_path
     output_file_path = rospkg.RosPack().get_path('cultureid_waypoints_following')+"/saved_path/pose_latest_" + str(game_id) + ".csv"
 
     sm = StateMachine(outcomes=['success'])
