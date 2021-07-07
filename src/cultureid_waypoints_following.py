@@ -32,7 +32,7 @@ class FollowPath(State):
         self.odom_frame_id = rospy.get_param('~odom_frame_id','odom')
         self.base_frame_id = rospy.get_param('~base_frame_id','base_footprint')
         self.duration = rospy.get_param('~wait_duration', 0.0)
-        self.go_to_next_waypoint_trigger_topic = rospy.get_param('~go_to_next_waypoint_trigger_topic', 'go_to_next_waypoint_trigger')
+        self.go_to_next_waypoint_trigger_topic = this_node_name + "/" + rospy.get_param('~go_to_next_waypoint_trigger_topic', 'go_to_next_waypoint_trigger')
 
 
         # Get a move_base action client
@@ -117,10 +117,10 @@ class GetPath(State):
         State.__init__(self, outcomes=['success'], input_keys=['waypoints'], output_keys=['waypoints'])
 
         # Topics
-        self.rviz_waypoints_ready_topic = rospy.get_param('~rviz_waypoints_ready_topic', 'rviz_waypoints_ready');
-        self.file_waypoints_ready_topic = rospy.get_param('~file_waypoints_ready_topic', 'file_waypoints_ready');
-        self.waypoints_reset_topic = rospy.get_param('~waypoints_reset_topic', 'waypoints_reset');
-        self.waypoints_vis_topic = rospy.get_param('~waypoints_visualisation_topic', 'waypoints_viz');
+        self.rviz_waypoints_ready_topic = this_node_name + "/" + rospy.get_param('~rviz_waypoints_ready_topic', 'rviz_waypoints_ready');
+        self.file_waypoints_ready_topic = this_node_name + "/" + rospy.get_param('~file_waypoints_ready_topic', 'file_waypoints_ready');
+        self.waypoints_reset_topic = this_node_name + "/" + rospy.get_param('~waypoints_reset_topic', 'waypoints_reset');
+        self.waypoints_vis_topic = this_node_name + "/" + rospy.get_param('~waypoints_visualisation_topic', 'waypoints_viz');
 
         # Create publisher to publish waypoints as pose array so that you can see them in rviz, etc.
         self.poseArray_publisher = rospy.Publisher(self.waypoints_vis_topic, PoseArray, queue_size=1)
@@ -213,7 +213,7 @@ class GetPath(State):
         start_journey_thread.start()
 
         # The topic where the waypoints provided via rviz are handed to this node for following
-        topic = rospy.get_param('~rviz_waypoints_topic', 'rviz_waypoints')
+        topic = this_node_name + "/" + rospy.get_param('~rviz_waypoints_topic', 'rviz_waypoints')
         rospy.loginfo("Waiting to receive waypoints via rviz on topic '%s'" % topic)
         rospy.loginfo("To start following rviz waypoints: 'rostopic pub %s std_msgs/Empty -1'" % self.rviz_waypoints_ready_topic)
         rospy.loginfo("OR")
@@ -267,18 +267,24 @@ class PathComplete(State):
 
 ################################################################################
 def main():
+
+    # Init node
     rospy.init_node('cultureid_waypoints_following')
 
+    global this_node_name
+    this_node_name = rospy.get_name().lstrip('/')
+    print("%s" % this_node_name)
 
     # Essentially which waypoints to follow
     game_id = rospy.get_param('~game_id', 0)
 
     # Paths for saving and retrieving the poses to be followed
     global input_file_path
-    input_file_path = rospkg.RosPack().get_path('cultureid_waypoints_following')+"/saved_path/pose_" + str(game_id) + ".csv"
+    input_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/pose_" + str(game_id) + ".csv"
+
 
     global output_file_path
-    output_file_path = rospkg.RosPack().get_path('cultureid_waypoints_following')+"/saved_path/pose_latest_" + str(game_id) + ".csv"
+    output_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/pose_latest_" + str(game_id) + ".csv"
 
     sm = StateMachine(outcomes=['success'])
 
