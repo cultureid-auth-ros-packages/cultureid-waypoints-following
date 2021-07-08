@@ -15,9 +15,19 @@ import rospkg
 import csv
 import time
 
-# Global variables
+### Global variables
+
+# All waypoints
 waypoints = []
+
+# 0 if this waypoint is not an intermediate point, 1 otherwise;
+# The robot does not stop at intermediate waypoints, and waits at the others
+waypoints_types = []
+
+# Read waypoints from this file
 input_file_path = ""
+
+# Write waypoints to this file
 output_file_path = ""
 
 ################################################################################
@@ -48,6 +58,7 @@ class FollowPath(State):
     ############################################################################
     def execute(self, userdata):
         global waypoints
+        global waypoints_types
 
         waypoint_counter = 0
 
@@ -97,7 +108,7 @@ class FollowPath(State):
             # 'go_to_next_waypoint_trigger_topic'
             # before moving on to the next waypoint.
             # The last waypoint signifies a de facto path_complete state on its own
-            if waypoint_counter < len(waypoints.poses):
+            if waypoint_counter < len(waypoints.poses) and waypoints_types[waypoint_counter-1] == 1:
                 rospy.loginfo("Reached target waypoint")
                 rospy.loginfo("Currently waiting for msg in '%s' to go to next waypoint" % self.go_to_next_waypoint_trigger_topic)
                 rospy.loginfo("To do so issue 'rostopic pub %s std_msgs/Empty -1'" % self.go_to_next_waypoint_trigger_topic)
@@ -185,6 +196,7 @@ class GetPath(State):
         # for loading the saved poses from saved_path/poses.csv
         def wait_for_start_journey():
             global waypoints
+            global waypoints_types
             global input_file_path
 
             """thread worker function"""
@@ -204,6 +216,8 @@ class GetPath(State):
                     current_pose.pose.orientation.y = float(row[4])
                     current_pose.pose.orientation.z = float(row[5])
                     current_pose.pose.orientation.w = float(row[6])
+                    waypoint_type                   = int(row[7])
+                    waypoints_types.append(waypoint_type)
                     waypoints.poses.append(current_pose)
             self.poseArray_publisher.publish(self.convert_Path_to_PoseArray(waypoints))
             self.start_journey_bool = True
