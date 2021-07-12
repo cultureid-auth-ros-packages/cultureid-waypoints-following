@@ -297,16 +297,19 @@ def main():
     this_node_name = rospy.get_name().lstrip('/')
     print("%s" % this_node_name)
 
+    # The name of the map of the environment running waypoints' following
+    map_name = rospy.get_param('~map_name', '')
+
     # Essentially which waypoints to follow
     game_id = rospy.get_param('~game_id', 0)
 
     # Paths for saving and retrieving the poses to be followed
     global input_file_path
-    input_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/pose_" + str(game_id) + ".csv"
+    input_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/"+map_name+"pose_" + str(game_id) + ".csv"
 
 
     global output_file_path
-    output_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/pose_latest_" + str(game_id) + ".csv"
+    output_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/"+map_name+"pose_latest_" + str(game_id) + ".csv"
 
     sm = StateMachine(outcomes=['success'])
 
