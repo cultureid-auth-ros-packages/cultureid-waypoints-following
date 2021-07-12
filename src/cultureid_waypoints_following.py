@@ -182,10 +182,11 @@ class GetPath(State):
             data = rospy.wait_for_message(self.rviz_waypoints_ready_topic, Empty)
             rospy.loginfo('Received path READY from rviz waypoints')
             self.path_ready = True
-            with open(output_file_path, 'w') as file:
-                for current_pose in waypoints.poses:
-                    file.write(str(current_pose.pose.position.x) + ',' + str(current_pose.pose.position.y) + ',' + str(current_pose.pose.position.z) + ',' + str(current_pose.pose.orientation.x) + ',' + str(current_pose.pose.orientation.y) + ',' + str(current_pose.pose.orientation.z) + ',' + str(current_pose.pose.orientation.w)+ '\n')
-	        rospy.loginfo('poses written to ' + output_file_path)
+#            with open(output_file_path, 'w') as file:
+                #for current_pose in waypoints.poses:
+                    #file.write(str(current_pose.pose.position.x) + ',' + str(current_pose.pose.position.y) + ',' + str(current_pose.pose.position.z) + ',' + str(current_pose.pose.orientation.x) + ',' + str(current_pose.pose.orientation.y) + ',' + str(current_pose.pose.orientation.z) + ',' + str(current_pose.pose.orientation.w)+ '\n')
+                #file.close()
+					#rospy.loginfo('rviz waypoints written to file ' + output_file_path)
         ready_thread = threading.Thread(target=wait_for_path_ready)
         ready_thread.start()
 
@@ -243,7 +244,14 @@ class GetPath(State):
                     continue  # no new waypoint within timeout, looping...
                 else:
                     raise e
-            rospy.loginfo("Received waypoints")
+            rospy.loginfo("Received waypoints from rviz")
+
+            with open(output_file_path, 'w') as file:
+                for current_pose in waypoints.poses:
+                    file.write(str(current_pose.pose.position.x) + ',' + str(current_pose.pose.position.y) + ',' + str(current_pose.pose.position.z) + ',' + str(current_pose.pose.orientation.x) + ',' + str(current_pose.pose.orientation.y) + ',' + str(current_pose.pose.orientation.z) + ',' + str(current_pose.pose.orientation.w)+ '\n')
+                file.close()
+
+            rospy.loginfo('rviz waypoints written to file ' + output_file_path)
 
             # publish waypoint queue as pose array so that you can see them in rviz, etc.
             self.poseArray_publisher.publish(self.convert_Path_to_PoseArray(waypoints))
