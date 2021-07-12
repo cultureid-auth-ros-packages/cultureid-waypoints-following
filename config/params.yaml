@@ -3,9 +3,8 @@ goal_frame_id: 'map'
 odom_frame_id: 'odom'
 base_frame_id: 'base_footprint'
 
-# Not used any more
-wait_duration:                0.0
-waypoint_distance_tolerance:  0.0
+wait_duration:                0.5 # sec
+waypoint_distance_tolerance:  0.5 # m
 
 # Topics subscribed/publishing to
 go_to_next_waypoint_trigger_topic:  'go_to_next_waypoint_trigger'

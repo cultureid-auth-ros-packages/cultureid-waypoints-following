@@ -41,7 +41,7 @@ class FollowPath(State):
         self.frame_id = rospy.get_param('~goal_frame_id','map')
         self.odom_frame_id = rospy.get_param('~odom_frame_id','odom')
         self.base_frame_id = rospy.get_param('~base_frame_id','base_footprint')
-        self.duration = rospy.get_param('~wait_duration', 0.0)
+        self.duration = rospy.get_param('~wait_duration', 1.0)
         self.go_to_next_waypoint_trigger_topic = this_node_name + "/" + rospy.get_param('~go_to_next_waypoint_trigger_topic', 'go_to_next_waypoint_trigger')
 
 
@@ -53,7 +53,7 @@ class FollowPath(State):
         rospy.loginfo('Starting a tf listener.')
         self.tf = TransformListener()
         self.listener = tf.TransformListener()
-        self.distance_tolerance = rospy.get_param('waypoint_distance_tolerance', 0.0)
+        self.distance_tolerance = rospy.get_param('waypoint_distance_tolerance', 0.5)
 
     ############################################################################
     def execute(self, userdata):
@@ -82,27 +82,18 @@ class FollowPath(State):
             rospy.loginfo("To cancel the goal: 'rostopic pub -1 /move_base/cancel actionlib_msgs/GoalID -- {}'")
             self.client.send_goal(goal)
 
-            """ Original lines follow: (modified 7/7/21)
-            if not self.distance_tolerance > 0.0:
-                rospy.loginfo('1')
-                self.client.wait_for_result()
-                rospy.loginfo("Waiting for %f sec..." % self.duration)
-                time.sleep(self.duration)
-            else:
-                #This is the loop which exist when the robot is near a certain GOAL point.
-                distance = 10
-                rospy.loginfo('2')
-                while(distance > self.distance_tolerance):
-                    rospy.loginfo('distance = %d' %distance)
-                    rospy.loginfo('3')
-                    now = rospy.Time.now()
-                    self.listener.waitForTransform(self.odom_frame_id, self.base_frame_id, now, rospy.Duration(4.0))
-                    trans,rot = self.listener.lookupTransform(self.odom_frame_id,self.base_frame_id, now)
-                    distance = math.sqrt(pow(waypoint.pose.position.x-trans[0],2)+pow(waypoint.pose.position.y-trans[1],2))
-            """
+            #This is the loop for the robot near a certain GOAL point.
+            distance = 10
+            while(distance > self.distance_tolerance):
+                time.sleep(self.duration) # To prevent from flooding the cpu
+
+                now = rospy.Time.now()
+                self.listener.waitForTransform(self.frame_id, self.base_frame_id, now, rospy.Duration(4.0))
+                trans,rot = self.listener.lookupTransform(self.frame_id,self.base_frame_id, now)
+                distance = math.sqrt(pow(waypoint.pose.position.x-trans[0],2)+pow(waypoint.pose.position.y-trans[1],2))
 
             # Wait for the robot to navigate to the waypoint
-            self.client.wait_for_result()
+            #self.client.wait_for_result()
 
             # Wait for a message publication in
             # 'go_to_next_waypoint_trigger_topic'
@@ -305,11 +296,11 @@ def main():
 
     # Paths for saving and retrieving the poses to be followed
     global input_file_path
-    input_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/"+map_name+"pose_" + str(game_id) + ".csv"
+    input_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/" + map_name + "_pose_" + str(game_id) + ".csv"
 
 
     global output_file_path
-    output_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/"+map_name+"pose_latest_" + str(game_id) + ".csv"
+    output_file_path = rospkg.RosPack().get_path(this_node_name)+"/saved_path/" + map_name + "_pose_latest_" + str(game_id) + ".csv"
 
     sm = StateMachine(outcomes=['success'])
 
