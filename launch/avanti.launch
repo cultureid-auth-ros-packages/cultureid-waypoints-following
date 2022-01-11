@@ -1,7 +1,7 @@
 <launch>
 
   <arg name="game_id"   default="0" />
-  <arg name="map_name"  default="" />
+  <arg name="map_name" />
 
   <node name="cultureid_waypoints_following" pkg="cultureid_waypoints_following" type="cultureid_waypoints_following.py" output="screen">
     <param name="game_id"    value="$(arg game_id)" />

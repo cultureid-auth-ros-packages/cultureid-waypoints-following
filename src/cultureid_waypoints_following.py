@@ -43,6 +43,8 @@ class FollowPath(State):
         self.base_frame_id = rospy.get_param('~base_frame_id','base_footprint')
         self.duration = rospy.get_param('~wait_duration', 1.0)
         self.go_to_next_waypoint_trigger_topic = this_node_name + "/" + rospy.get_param('~go_to_next_waypoint_trigger_topic', 'go_to_next_waypoint_trigger')
+        self.stopped_at_waypoint_topic = this_node_name + "/" + rospy.get_param('~stopped_at_waypoint_topic', 'stopped_at_waypoint')
+        self.stopped_at_waypoint_alert_pub = rospy.Publisher(self.stopped_at_waypoint_topic, Empty, queue_size=1)
 
 
         # Get a move_base action client
@@ -86,7 +88,6 @@ class FollowPath(State):
             distance = 10
             while(distance > self.distance_tolerance):
                 time.sleep(self.duration) # To prevent from flooding the cpu
-
                 now = rospy.Time.now()
                 self.listener.waitForTransform(self.frame_id, self.base_frame_id, now, rospy.Duration(4.0))
                 trans,rot = self.listener.lookupTransform(self.frame_id,self.base_frame_id, now)
@@ -99,7 +100,10 @@ class FollowPath(State):
             # 'go_to_next_waypoint_trigger_topic'
             # before moving on to the next waypoint.
             # The last waypoint signifies a de facto path_complete state on its own
-            if waypoint_counter < len(waypoints.poses) and waypoints_types[waypoint_counter-1] == 1:
+            #if waypoint_counter < len(waypoints.poses) and waypoints_types[waypoint_counter-1] == 1:
+            if waypoints_types[waypoint_counter-1] == 1:
+                empty_msg = Empty()
+                self.stopped_at_waypoint_alert_pub.publish(empty_msg)
                 rospy.loginfo("Reached target waypoint")
                 rospy.loginfo("Currently waiting for msg in '%s' to go to next waypoint" % self.go_to_next_waypoint_trigger_topic)
                 rospy.loginfo("To do so issue 'rostopic pub %s std_msgs/Empty -1'" % self.go_to_next_waypoint_trigger_topic)
@@ -243,6 +247,10 @@ class GetPath(State):
                 file.close()
 
             rospy.loginfo('rviz waypoints written to file ' + output_file_path)
+            rospy.logwarn('To follow these waypoints in the future you should \
+                rename this file by removing the word "latest" and adding a \
+                last column where 1 signifies a full stop at that waypoint \
+                and 0 a plain passing over it')
 
             # publish waypoint queue as pose array so that you can see them in rviz, etc.
             self.poseArray_publisher.publish(self.convert_Path_to_PoseArray(waypoints))
